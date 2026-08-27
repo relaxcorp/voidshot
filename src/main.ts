@@ -142,7 +142,12 @@ const FALLBACK_SETTINGS: Settings = {
  * startup and reused — so this path never pays the WebView2 cold-start cost,
  * which was the bulk of the press-to-overlay delay.
  */
-async function startCapture(): Promise<void> {
+interface CaptureTiming {
+  capture_ms: number;
+  resize_ms: number;
+}
+
+async function startCapture(timing?: CaptureTiming): Promise<void> {
   // Tear down the previous capture's editor/toolbar so we never stack rAF loops
   // or leak the old frame bitmap.
   toolbar?.destroy();
@@ -150,9 +155,11 @@ async function startCapture(): Promise<void> {
   editor?.destroy();
   editor = null;
 
+  const t0 = performance.now();
   const settings = await invoke<Settings>("get_settings").catch(() => FALLBACK_SETTINGS);
   const geometry = await invoke<DesktopGeometry>("frame_info");
   const raw = await invoke<ArrayBuffer>("frame_pixels");
+  const tIpc = performance.now();
 
   const pixels = new Uint8ClampedArray(raw);
   const expected = geometry.pixel_width * geometry.pixel_height * 4;
@@ -164,6 +171,7 @@ async function startCapture(): Promise<void> {
 
   const imageData = new ImageData(pixels, geometry.pixel_width, geometry.pixel_height);
   const bitmap = await createImageBitmap(imageData);
+  const tBmp = performance.now();
 
   editor = new Editor(canvas, bitmap, geometry, settings, {
     onAction: (action, result) => void handleAction(action, result),
@@ -174,13 +182,21 @@ async function startCapture(): Promise<void> {
     editor?.requestRender(),
   );
 
-  setStatus("Drag to select a region · Esc to cancel");
-
   // Paint the frozen frame + dim into the canvas now, then reveal the window so
   // it appears fully rendered instead of flashing an empty overlay.
   editor.renderNow();
+  const tPaint = performance.now();
   void invoke("overlay_ready");
   openedAt = performance.now();
+
+  // Diagnostic: show where the press-to-overlay time went, in the status bar.
+  const cap = timing?.capture_ms ?? 0;
+  const rez = timing?.resize_ms ?? 0;
+  setStatus(
+    `⏱ grab ${cap} · resize ${rez} · load ${Math.round(tIpc - t0)} · decode ${Math.round(
+      tBmp - tIpc,
+    )} · paint ${Math.round(tPaint - tBmp)} ms — drag to select`,
+  );
 }
 
 // ---- one-time page setup (the overlay window is long-lived and reused) -------
@@ -199,8 +215,8 @@ void appWindow.onFocusChanged(({ payload: focused }) => {
 });
 
 // Each PrintScreen stages a new frame in the backend and fires this event.
-void listen("voidshot:capture", () => {
-  void startCapture().catch((e) => {
+void listen<CaptureTiming>("voidshot:capture", (event) => {
+  void startCapture(event.payload).catch((e) => {
     setStatus(`Startup failed: ${e}`, "error");
     window.setTimeout(() => void invoke("cancel_capture"), 2500);
   });
