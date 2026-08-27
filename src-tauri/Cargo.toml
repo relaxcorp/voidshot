@@ -55,6 +55,9 @@ windows = { version = "0.62", features = [
 [profile.release]
 codegen-units = 1
 lto = true
-opt-level = "s"
+# opt-level 3, not "s": the hot path resizes/encodes multi-megapixel frames on
+# every capture, and optimising for size made that visibly slow. A slightly
+# bigger binary is worth an instant overlay.
+opt-level = 3
 panic = "abort"
 strip = true

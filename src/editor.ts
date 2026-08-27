@@ -305,7 +305,7 @@ export class Editor {
         return {
           kind: "highlight",
           points: [...points],
-          color: "#ffe14d",
+          color: this.color,
           width: this.strokeWidth * 4,
         };
       default:

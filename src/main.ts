@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { listen } from "@tauri-apps/api/event";
 import { Editor, type EditorAction } from "./editor";
 import type { DesktopGeometry, RedactStyle, Settings, ToolId } from "./types";
 import { buildToolbar, type ToolbarHandle } from "./toolbar";
@@ -8,6 +9,7 @@ const COLORS = ["#ff3b30", "#ff9f0a", "#ffe14d", "#32d74b", "#4da3ff", "#bf5af2"
 
 let editor: Editor | null = null;
 let toolbar: ToolbarHandle | null = null;
+let openedAt = 0;
 
 const statusEl = document.getElementById("status") as HTMLDivElement;
 const canvas = document.getElementById("stage") as HTMLCanvasElement;
@@ -118,31 +120,37 @@ function bindHotkeys(): void {
       e.preventDefault();
       editor.tool = tool;
       toolbar?.sync();
-      return;
-    }
-    if (e.key.toLowerCase() === "o") {
-      e.preventDefault();
-      editor.run("ocr");
     }
   });
 }
 
-async function boot(): Promise<void> {
-  const settings = await invoke<Settings>("get_settings").catch(
-    () =>
-      ({
-        hotkey: "",
-        save_dir: "",
-        format: "png",
-        jpeg_quality: 92,
-        copy_on_save: true,
-        quick_save: false,
-        redact_style: "blur" as RedactStyle,
-        redact_padding: 2,
-        show_magnifier: true,
-      }) satisfies Settings,
-  );
+const FALLBACK_SETTINGS: Settings = {
+  hotkey: "",
+  save_dir: "",
+  format: "png",
+  jpeg_quality: 92,
+  copy_on_save: true,
+  quick_save: false,
+  redact_style: "blur" as RedactStyle,
+  redact_padding: 2,
+  show_magnifier: true,
+};
 
+/**
+ * Run one capture: pull the staged frame, (re)build the editor and toolbar,
+ * paint, then reveal the window. The overlay window itself is created once at
+ * startup and reused — so this path never pays the WebView2 cold-start cost,
+ * which was the bulk of the press-to-overlay delay.
+ */
+async function startCapture(): Promise<void> {
+  // Tear down the previous capture's editor/toolbar so we never stack rAF loops
+  // or leak the old frame bitmap.
+  toolbar?.destroy();
+  toolbar = null;
+  editor?.destroy();
+  editor = null;
+
+  const settings = await invoke<Settings>("get_settings").catch(() => FALLBACK_SETTINGS);
   const geometry = await invoke<DesktopGeometry>("frame_info");
   const raw = await invoke<ArrayBuffer>("frame_pixels");
 
@@ -166,32 +174,42 @@ async function boot(): Promise<void> {
     editor?.requestRender(),
   );
 
-  bindHotkeys();
   setStatus("Drag to select a region · Esc to cancel");
 
-  // The overlay window was built hidden. Paint the frozen frame + dim into the
-  // canvas now, then ask the backend to reveal the window — so it appears fully
-  // rendered instead of flashing a transparent, un-dimmed overlay first.
+  // Paint the frozen frame + dim into the canvas now, then reveal the window so
+  // it appears fully rendered instead of flashing an empty overlay.
   editor.renderNow();
   void invoke("overlay_ready");
-
-  // If something steals the foreground the frozen screenshot underneath is
-  // stale, so close rather than show a lie.
-  //
-  // The grace period matters: focus often flickers in the first moments after
-  // the overlay appears, and a false auto-close is far more annoying than an
-  // overlay that lingers (Esc always works).
-  const openedAt = performance.now();
-  const appWindow = getCurrentWindow();
-  await appWindow.onFocusChanged(({ payload: focused }) => {
-    if (focused || !editor) return;
-    if (performance.now() - openedAt < 1500) return;
-    if (editor.hasSelection) return;
-    void invoke("cancel_capture");
-  });
+  openedAt = performance.now();
 }
 
-void boot().catch((e) => {
-  setStatus(`Startup failed: ${e}`, "error");
-  window.setTimeout(() => void invoke("cancel_capture"), 2500);
+// ---- one-time page setup (the overlay window is long-lived and reused) -------
+
+bindHotkeys();
+
+const appWindow = getCurrentWindow();
+// If something steals the foreground the frozen screenshot underneath is stale,
+// so close rather than show a lie. The grace period avoids a false close from
+// the focus flicker right after the overlay appears.
+void appWindow.onFocusChanged(({ payload: focused }) => {
+  if (focused || !editor) return;
+  if (performance.now() - openedAt < 1500) return;
+  if (editor.hasSelection) return;
+  void invoke("cancel_capture");
 });
+
+// Each PrintScreen stages a new frame in the backend and fires this event.
+void listen("voidshot:capture", () => {
+  void startCapture().catch((e) => {
+    setStatus(`Startup failed: ${e}`, "error");
+    window.setTimeout(() => void invoke("cancel_capture"), 2500);
+  });
+});
+
+// Fallback: if a frame is already staged when this page loads (e.g. the window
+// was created on-demand rather than preheated), start immediately.
+void invoke<DesktopGeometry>("frame_info")
+  .then(() => startCapture())
+  .catch(() => {
+    /* no frame yet — wait for the voidshot:capture event */
+  });

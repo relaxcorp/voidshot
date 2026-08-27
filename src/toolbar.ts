@@ -3,6 +3,7 @@ import type { RedactStyle, ToolId } from "./types";
 
 export interface ToolbarHandle {
   sync(): void;
+  destroy(): void;
 }
 
 const ICONS: Record<string, string> = {
@@ -62,6 +63,9 @@ export function buildToolbar(
   onChange: () => void,
 ): ToolbarHandle {
   root.innerHTML = `
+    <div class="vs-grip" id="vs-grip" title="Drag to move the toolbar" aria-hidden="true">
+      <svg viewBox="0 0 8 20"><circle cx="2" cy="4" r="1.3"/><circle cx="6" cy="4" r="1.3"/><circle cx="2" cy="10" r="1.3"/><circle cx="6" cy="10" r="1.3"/><circle cx="2" cy="16" r="1.3"/><circle cx="6" cy="16" r="1.3"/></svg>
+    </div>
     <div class="vs-group" id="vs-tools">
       ${TOOLS.map(
         (t) => `<button class="vs-btn" data-tool="${t.id}" title="${t.label} (${t.key})" aria-label="${t.label}">${icon(t.id)}</button>`,
@@ -100,7 +104,6 @@ export function buildToolbar(
     </div>
     <div class="vs-sep"></div>
     <div class="vs-group">
-      <button class="vs-btn" data-cmd="ocr" title="Copy text via OCR (O)">${icon("ocr")}</button>
       <button class="vs-btn" data-cmd="pin" title="Pin on top">${icon("pin")}</button>
       <button class="vs-btn" data-cmd="save" title="Save (Ctrl+S)">${icon("save")}</button>
       <button class="vs-btn vs-primary" data-cmd="copy" title="Copy (Enter)">${icon("copy")}</button>
@@ -116,7 +119,36 @@ export function buildToolbar(
   const redactPop = root.querySelector<HTMLDivElement>("#vs-redact-pop")!;
   const redactLabel = root.querySelector<HTMLSpanElement>("#vs-redact-label")!;
 
-  root.addEventListener("pointerdown", (e) => e.stopPropagation());
+  // Manual position while the user is dragging the bar. Not persisted — it lives
+  // only for this capture and resets when the next screenshot rebuilds the bar.
+  let userPos: { x: number; y: number } | null = null;
+
+  root.addEventListener("pointerdown", (e) => {
+    e.stopPropagation();
+    const t = e.target as HTMLElement;
+    // Buttons, inputs and popovers do their own thing; drag only from empty
+    // toolbar space or the grip.
+    if (t.closest("button, input, .vs-pop") && !t.closest("#vs-grip")) return;
+
+    const rect = root.getBoundingClientRect();
+    const offX = e.clientX - rect.left;
+    const offY = e.clientY - rect.top;
+
+    const onMove = (ev: PointerEvent) => {
+      let x = ev.clientX - offX;
+      let y = ev.clientY - offY;
+      x = clamp(x, 6, window.innerWidth - rect.width - 6);
+      y = clamp(y, 6, window.innerHeight - rect.height - 6);
+      userPos = { x, y };
+      root.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  });
 
   function closePops(): void {
     colorPop.hidden = true;
@@ -235,6 +267,12 @@ export function buildToolbar(
     }
     root.classList.add("visible");
 
+    // Once the user has dragged the bar, respect that and stop auto-placing it.
+    if (userPos) {
+      root.style.transform = `translate(${Math.round(userPos.x)}px, ${Math.round(userPos.y)}px)`;
+      return;
+    }
+
     // Selection is in canvas pixels; the toolbar lives in CSS pixels.
     const stage = document.getElementById("stage") as HTMLCanvasElement;
     const box = stage.getBoundingClientRect();
@@ -277,8 +315,13 @@ export function buildToolbar(
     raf = requestAnimationFrame(loop);
   };
   raf = requestAnimationFrame(loop);
+  const destroy = () => {
+    cancelAnimationFrame(raf);
+    root.innerHTML = "";
+    root.classList.remove("visible");
+  };
   window.addEventListener("beforeunload", () => cancelAnimationFrame(raf));
 
   sync();
-  return { sync };
+  return { sync, destroy };
 }

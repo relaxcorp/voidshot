@@ -80,14 +80,35 @@ fn tauri_virtual_rect(app: &AppHandle) -> Result<(i32, i32, u32, u32)> {
     ))
 }
 
-/// Grab the screen and show the overlay editor over it.
+/// Build the overlay window (hidden). Created once at startup and reused for
+/// every capture, so the hotkey never pays the WebView2 cold-start cost — that
+/// was the bulk of the old press-to-overlay delay.
+fn build_overlay_window(app: &AppHandle) -> Result<WebviewWindow> {
+    WebviewWindowBuilder::new(app, OVERLAY_LABEL, WebviewUrl::App("index.html".into()))
+        .title("Voidshot")
+        .decorations(false)
+        .transparent(true)
+        .shadow(false)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .resizable(false)
+        .maximizable(false)
+        .minimizable(false)
+        .visible(false)
+        .focused(false)
+        .build()
+        .context("build overlay window")
+}
+
+/// Grab the screen and hand the frozen frame to the reused overlay editor.
 fn begin_capture(app: &AppHandle) -> Result<()> {
-    // If an overlay is already up, treat the hotkey as "restart the capture"
-    // and make sure the old one is gone before we grab -- otherwise we would
-    // screenshot our own UI.
-    if let Some(existing) = app.get_webview_window(OVERLAY_LABEL) {
-        let _ = existing.close();
-        std::thread::sleep(std::time::Duration::from_millis(120));
+    // The overlay is reused between captures. Make sure it is hidden before we
+    // grab, or we would screenshot our own UI.
+    if let Some(w) = app.get_webview_window(OVERLAY_LABEL) {
+        if w.is_visible().unwrap_or(false) {
+            let _ = w.hide();
+            std::thread::sleep(std::time::Duration::from_millis(60));
+        }
     }
 
     let (vx, vy, vw, vh) = tauri_virtual_rect(app)?;
@@ -132,32 +153,22 @@ fn begin_capture(app: &AppHandle) -> Result<()> {
     let state = app.state::<AppState>();
     *state.frame() = Some(frame);
 
-    let window = WebviewWindowBuilder::new(app, OVERLAY_LABEL, WebviewUrl::App("index.html".into()))
-        .title("Voidshot")
-        .decorations(false)
-        .transparent(true)
-        .shadow(false)
-        .always_on_top(true)
-        .skip_taskbar(true)
-        .resizable(false)
-        .maximizable(false)
-        .minimizable(false)
-        .visible(false)
-        .focused(true)
-        .build()
-        .context("build overlay window")?;
-
+    // Reuse the preheated window; build one only if it is somehow gone.
+    let window = match app.get_webview_window(OVERLAY_LABEL) {
+        Some(w) => w,
+        None => build_overlay_window(app)?,
+    };
     window
         .set_position(PhysicalPosition::new(vx, vy))
         .context("position overlay")?;
     window
         .set_size(PhysicalSize::new(vw, vh))
         .context("size overlay")?;
-    // Deliberately do NOT show here. The window stays hidden until the frontend
-    // has painted the frozen frame and the dim, then calls `overlay_ready`. That
-    // removes the flash of a transparent, un-dimmed overlay with a bare cursor
-    // while the ~30 MB frame is still loading over the IPC bridge.
 
+    // Tell the already-loaded frontend to load the new frame and repaint. When
+    // it has painted it calls `overlay_ready`, which shows the window — so it
+    // appears fully rendered, never as an empty flash.
+    let _ = window.emit("voidshot:capture", ());
     Ok(())
 }
 
@@ -199,8 +210,10 @@ fn spawn_instant(app: AppHandle) {
 }
 
 fn close_overlay(app: &AppHandle) {
+    // Hide, not close: the window is reused across captures. Hiding keeps the
+    // warm WebView2 alive for an instant next capture.
     if let Some(w) = app.get_webview_window(OVERLAY_LABEL) {
-        let _ = w.close();
+        let _ = w.hide();
     }
     let state = app.state::<AppState>();
     // Drop the captured pixels as soon as the overlay goes away -- no reason to
@@ -663,6 +676,11 @@ pub fn run() {
             }
 
             build_tray(&handle)?;
+
+            // Preheat the overlay window (hidden) so the very first capture is
+            // as instant as every one after it.
+            let _ = build_overlay_window(&handle);
+
             Ok(())
         })
         .on_window_event(|window, event| {

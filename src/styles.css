@@ -63,6 +63,32 @@ body.overlay {
   display: flex;
 }
 
+.vs-grip {
+  display: grid;
+  place-items: center;
+  align-self: stretch;
+  width: 16px;
+  margin-right: 2px;
+  border-radius: 6px;
+  color: var(--text-dim);
+  cursor: grab;
+}
+
+.vs-grip:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+
+.vs-grip:active {
+  cursor: grabbing;
+}
+
+.vs-grip svg {
+  width: 8px;
+  height: 20px;
+  fill: currentColor;
+}
+
 .vs-group {
   display: flex;
   align-items: center;
