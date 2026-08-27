@@ -1,4 +1,5 @@
 mod capture;
+mod hook;
 mod imageio;
 mod ocr;
 mod settings;
@@ -583,6 +584,20 @@ pub fn run() {
             }
 
             *app.state::<AppState>().settings() = loaded;
+
+            // Windows: own PrintScreen for real. RegisterHotKey (above) loses the
+            // key to Snipping Tool on Win11, so a low-level keyboard hook grabs it
+            // ahead of the OS. Also free the key in the registry and start with
+            // Windows, so "PrintScreen opens Voidshot" holds across reboots.
+            #[cfg(windows)]
+            {
+                hook::free_printscreen_key();
+                if let Ok(exe) = std::env::current_exe() {
+                    hook::set_autostart(&exe.to_string_lossy());
+                }
+                let h = handle.clone();
+                hook::install(Box::new(move || spawn_capture(h.clone())));
+            }
 
             build_tray(&handle)?;
             Ok(())
