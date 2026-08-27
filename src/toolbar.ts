@@ -23,6 +23,7 @@ const ICONS: Record<string, string> = {
   save: `<path d="M4.5 4.5h10L17.5 7.5v10h-13z" fill="none" stroke-width="2" stroke-linejoin="round"/><path d="M7.5 4.5v4h6v-4M7.5 17.5v-5h7v5" fill="none" stroke-width="1.6"/>`,
   copy: `<rect x="7" y="7" width="10" height="11" rx="2" fill="none" stroke-width="2"/><path d="M13 4H5v11" fill="none" stroke-width="2" stroke-linecap="round"/>`,
   close: `<path d="M6 6l10 10M16 6L6 16" fill="none" stroke-width="2.2" stroke-linecap="round"/>`,
+  chevron: `<path d="M6 9l5 5 5-5" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`,
 };
 
 function icon(name: string): string {
@@ -48,6 +49,12 @@ const REDACT_STYLES: Array<{ id: RedactStyle; label: string }> = [
   { id: "solid", label: "Solid" },
 ];
 
+/** Keep a value within [lo, hi]; if the range is empty, sit in its middle. */
+function clamp(v: number, lo: number, hi: number): number {
+  if (lo > hi) return (lo + hi) / 2;
+  return Math.max(lo, Math.min(v, hi));
+}
+
 export function buildToolbar(
   root: HTMLDivElement,
   editor: Editor,
@@ -61,16 +68,25 @@ export function buildToolbar(
       ).join("")}
     </div>
     <div class="vs-sep"></div>
-    <div class="vs-group" id="vs-colors">
-      ${colors
-        .map((c) => `<button class="vs-swatch" data-color="${c}" style="--swatch:${c}" title="${c}"></button>`)
-        .join("")}
+    <!-- Colour is collapsed into a single swatch that opens a popover, so the
+         bar stays short instead of showing the whole palette inline. -->
+    <div class="vs-group" id="vs-color">
+      <button class="vs-swatch vs-color-toggle" id="vs-color-toggle" title="Colour"></button>
+      <div class="vs-pop" id="vs-color-pop" hidden>
+        ${colors
+          .map((c) => `<button class="vs-swatch" data-color="${c}" style="--swatch:${c}" title="${c}"></button>`)
+          .join("")}
+      </div>
     </div>
     <div class="vs-group vs-stack" id="vs-width">
       <input type="range" min="1" max="24" step="1" value="4" aria-label="Stroke width" />
     </div>
+    <!-- Redaction style is also collapsed behind one button + popover. -->
     <div class="vs-group vs-redact" id="vs-redact" hidden>
-      <div class="vs-styles">
+      <button class="vs-btn vs-redact-toggle" id="vs-redact-toggle" title="Redaction style">
+        <span id="vs-redact-label">Blur</span>${icon("chevron")}
+      </button>
+      <div class="vs-pop" id="vs-redact-pop" hidden>
         ${REDACT_STYLES.map(
           (s) => `<button class="vs-chip" data-style="${s.id}">${s.label}</button>`,
         ).join("")}
@@ -95,15 +111,38 @@ export function buildToolbar(
   const widthInput = root.querySelector<HTMLInputElement>("#vs-width input")!;
   const redactPanel = root.querySelector<HTMLDivElement>("#vs-redact")!;
   const strengthInput = redactPanel.querySelector<HTMLInputElement>("input")!;
+  const colorToggle = root.querySelector<HTMLButtonElement>("#vs-color-toggle")!;
+  const colorPop = root.querySelector<HTMLDivElement>("#vs-color-pop")!;
+  const redactPop = root.querySelector<HTMLDivElement>("#vs-redact-pop")!;
+  const redactLabel = root.querySelector<HTMLSpanElement>("#vs-redact-label")!;
 
   root.addEventListener("pointerdown", (e) => e.stopPropagation());
+
+  function closePops(): void {
+    colorPop.hidden = true;
+    redactPop.hidden = true;
+  }
 
   root.addEventListener("click", (e) => {
     const target = e.target as HTMLElement;
 
+    if (target.closest("#vs-color-toggle")) {
+      const show = colorPop.hidden;
+      closePops();
+      colorPop.hidden = !show;
+      return;
+    }
+    if (target.closest("#vs-redact-toggle")) {
+      const show = redactPop.hidden;
+      closePops();
+      redactPop.hidden = !show;
+      return;
+    }
+
     const toolBtn = target.closest<HTMLButtonElement>("[data-tool]");
     if (toolBtn) {
       editor.tool = toolBtn.dataset.tool as ToolId;
+      closePops();
       sync();
       return;
     }
@@ -111,6 +150,7 @@ export function buildToolbar(
     const swatch = target.closest<HTMLButtonElement>("[data-color]");
     if (swatch) {
       editor.color = swatch.dataset.color!;
+      colorPop.hidden = true;
       sync();
       return;
     }
@@ -118,12 +158,14 @@ export function buildToolbar(
     const chip = target.closest<HTMLButtonElement>("[data-style]");
     if (chip) {
       editor.redactStyle = chip.dataset.style as RedactStyle;
+      redactPop.hidden = true;
       sync();
       return;
     }
 
     const cmd = target.closest<HTMLButtonElement>("[data-cmd]")?.dataset.cmd;
     if (!cmd) return;
+    closePops();
     switch (cmd) {
       case "undo":
         editor.undo();
@@ -132,7 +174,7 @@ export function buildToolbar(
         editor.redo();
         break;
       default:
-        editor.run(cmd as any);
+        editor.run(cmd as never);
         return;
     }
     sync();
@@ -159,12 +201,17 @@ export function buildToolbar(
     root.querySelectorAll<HTMLButtonElement>("[data-style]").forEach((b) => {
       b.classList.toggle("active", b.dataset.style === editor.redactStyle);
     });
+    colorToggle.style.setProperty("--swatch", editor.color);
+    const activeStyle = REDACT_STYLES.find((s) => s.id === editor.redactStyle);
+    if (activeStyle) redactLabel.textContent = activeStyle.label;
 
     // Redaction has its own controls and no colour, so swap the panels.
     const isRedact = editor.tool === "redact";
     redactPanel.hidden = !isRedact;
-    root.querySelector<HTMLDivElement>("#vs-colors")!.hidden = isRedact;
+    root.querySelector<HTMLDivElement>("#vs-color")!.hidden = isRedact;
     root.querySelector<HTMLDivElement>("#vs-width")!.hidden = isRedact;
+    if (isRedact) colorPop.hidden = true;
+    else redactPop.hidden = true;
 
     root.querySelector<HTMLButtonElement>('[data-cmd="undo"]')!.disabled = !editor.canUndo;
     root.querySelector<HTMLButtonElement>('[data-cmd="redo"]')!.disabled = !editor.canRedo;
@@ -172,11 +219,18 @@ export function buildToolbar(
     position();
   }
 
-  /** Park the toolbar just outside the selection, flipping when it would clip. */
+  /**
+   * Park the toolbar INSIDE the selection, near its bottom edge. Anchoring to
+   * the selection (not the desktop) keeps it on the same monitor and always
+   * visible — even for a full-screen selection, and even across a 3-monitor
+   * setup where clamping to the whole virtual desktop used to fling it onto a
+   * neighbouring screen.
+   */
   function position(): void {
     const sel = editor.selectionRect;
     if (!editor.hasSelection || !sel) {
       root.classList.remove("visible");
+      closePops();
       return;
     }
     root.classList.add("visible");
@@ -187,23 +241,30 @@ export function buildToolbar(
     const sx = box.width / stage.width;
     const sy = box.height / stage.height;
 
-    const left = sel.x * sx;
-    const top = sel.y * sy;
-    const width = sel.w * sx;
-    const height = sel.h * sy;
+    const selL = box.left + sel.x * sx;
+    const selT = box.top + sel.y * sy;
+    const selW = sel.w * sx;
+    const selH = sel.h * sy;
 
     const tb = root.getBoundingClientRect();
-    const gap = 10;
+    const gap = 12;
+    const vpGap = 6;
 
-    let x = left + width / 2 - tb.width / 2;
-    x = Math.max(gap, Math.min(x, window.innerWidth - tb.width - gap));
+    // Horizontal: centre within the selection, clamped inside it.
+    let x = selL + selW / 2 - tb.width / 2;
+    x = clamp(x, selL + gap, selL + selW - tb.width - gap);
+    x = clamp(x, vpGap, window.innerWidth - tb.width - vpGap);
 
-    let y = top + height + gap;
-    if (y + tb.height > window.innerHeight - gap) {
-      y = top - tb.height - gap;
-      // Selection fills the screen vertically: sit inside the bottom edge.
-      if (y < gap) y = Math.min(window.innerHeight - tb.height - gap, top + height - tb.height - gap);
+    // Vertical: sit inside near the bottom when the selection is tall enough;
+    // otherwise tuck it just below/above, still clamped to the viewport.
+    let y: number;
+    if (selH >= tb.height + gap * 2) {
+      y = selT + selH - tb.height - gap;
+    } else {
+      y = selT + selH + gap;
+      if (y + tb.height > window.innerHeight - vpGap) y = selT - tb.height - gap;
     }
+    y = clamp(y, vpGap, window.innerHeight - tb.height - vpGap);
 
     root.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
   }

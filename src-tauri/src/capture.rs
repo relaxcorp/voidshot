@@ -111,7 +111,7 @@ pub fn capture_desktop() -> Result<Frame> {
         let src = if panel.image.width() == dst_w && panel.image.height() == dst_h {
             panel.image
         } else {
-            image::imageops::resize(&panel.image, dst_w, dst_h, FilterType::Lanczos3)
+            image::imageops::resize(&panel.image, dst_w, dst_h, FilterType::Triangle)
         };
 
         image::imageops::replace(&mut canvas, &src, dst_x, dst_y);

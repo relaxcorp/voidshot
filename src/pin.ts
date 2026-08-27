@@ -5,9 +5,28 @@ const img = document.getElementById("pin-image") as HTMLImageElement;
 const appWindow = getCurrentWindow();
 
 async function boot(): Promise<void> {
-  const raw = await invoke<ArrayBuffer>("pin_bytes");
-  const blob = new Blob([raw], { type: "image/png" });
-  img.src = URL.createObjectURL(blob);
+  try {
+    const raw = await invoke<ArrayBuffer | Uint8Array | number[]>("pin_bytes");
+    // Tauri may hand back an ArrayBuffer, a typed array, or a plain number[]
+    // depending on the IPC path; normalise so the Blob is always valid PNG.
+    const bytes =
+      raw instanceof Uint8Array
+        ? raw
+        : raw instanceof ArrayBuffer
+          ? new Uint8Array(raw)
+          : new Uint8Array(raw as number[]);
+    if (bytes.byteLength === 0) {
+      img.alt = "Pin data was empty";
+      return;
+    }
+    const blob = new Blob([bytes as unknown as BlobPart], { type: "image/png" });
+    img.onerror = () => {
+      img.alt = "Pin image failed to decode";
+    };
+    img.src = URL.createObjectURL(blob);
+  } catch (e) {
+    img.alt = `Pin failed: ${e}`;
+  }
 }
 
 // Dragging anywhere moves the window — the pin has no title bar.

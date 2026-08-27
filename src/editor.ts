@@ -153,6 +153,11 @@ export class Editor {
     if (!this.selection || !pointInRect(p, this.selection)) return;
 
     if (this.tool === "text") {
+      // Hand focus to the textarea: keep the canvas from holding the pointer
+      // capture (which was swallowing the click that should focus the input).
+      if (this.canvas.hasPointerCapture(e.pointerId)) {
+        this.canvas.releasePointerCapture(e.pointerId);
+      }
       this.host.onStatus("Type your note, then press Esc or click away");
       this.beginTextEntry(p);
       return;
@@ -385,7 +390,9 @@ export class Editor {
     input.style.color = this.color;
     input.style.fontSize = `${this.textSize * scaleY}px`;
     document.body.appendChild(input);
-    input.focus();
+    // Focus on the next frame: focusing during the pointerdown that created it
+    // can be undone by the browser's own focus handling for the click.
+    requestAnimationFrame(() => input.focus());
 
     const commit = () => {
       const value = input.value.trim();
@@ -492,6 +499,17 @@ export class Editor {
       this.frameQueued = false;
       this.paint();
     });
+  }
+
+  /**
+   * Paint synchronously, right now. Used before the overlay window is shown:
+   * a hidden window may not run requestAnimationFrame, so we draw the frozen
+   * frame + dim into the canvas backing store directly, then reveal the window
+   * already rendered instead of flashing an empty transparent overlay.
+   */
+  renderNow(): void {
+    this.frameQueued = false;
+    this.paint();
   }
 
   private paint(): void {

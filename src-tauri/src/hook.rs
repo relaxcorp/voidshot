@@ -26,7 +26,7 @@ mod win {
     use windows::Win32::System::Registry::{
         RegSetKeyValueW, HKEY_CURRENT_USER, REG_DWORD, REG_SZ,
     };
-    use windows::Win32::UI::Input::KeyboardAndMouse::VK_SNAPSHOT;
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_CONTROL, VK_SNAPSHOT};
     use windows::Win32::UI::WindowsAndMessaging::{
         CallNextHookEx, GetMessageW, SetWindowsHookExW, HC_ACTION, KBDLLHOOKSTRUCT, MSG,
         WH_KEYBOARD_LL, WM_KEYDOWN, WM_SYSKEYDOWN,
@@ -34,9 +34,16 @@ mod win {
 
     type Trigger = Box<dyn Fn() + Send + Sync>;
 
-    /// The capture action, set once at install time and read from the hook
-    /// callback (which runs on the dedicated hook thread).
-    static TRIGGER: OnceLock<Trigger> = OnceLock::new();
+    struct Triggers {
+        /// PrintScreen — open the region-select overlay.
+        region: Trigger,
+        /// Ctrl+PrintScreen — grab the whole desktop instantly, no overlay.
+        fullscreen: Trigger,
+    }
+
+    /// Capture actions, set once at install time and read from the hook callback
+    /// (which runs on the dedicated hook thread).
+    static TRIGGERS: OnceLock<Triggers> = OnceLock::new();
 
     unsafe extern "system" fn kbd_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
         if code == HC_ACTION as i32 {
@@ -44,8 +51,14 @@ mod win {
             if msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN {
                 let kb = &*(lparam.0 as *const KBDLLHOOKSTRUCT);
                 if kb.vkCode == VK_SNAPSHOT.0 as u32 {
-                    if let Some(fire) = TRIGGER.get() {
-                        fire();
+                    if let Some(t) = TRIGGERS.get() {
+                        // High bit set = key currently down.
+                        let ctrl = (GetAsyncKeyState(VK_CONTROL.0 as i32) as u16 & 0x8000) != 0;
+                        if ctrl {
+                            (t.fullscreen)();
+                        } else {
+                            (t.region)();
+                        }
                     }
                     // Swallow the key: Snipping Tool and everyone else never see
                     // PrintScreen, so we are the only thing it triggers.
@@ -59,8 +72,8 @@ mod win {
     /// Install the low-level keyboard hook on a dedicated thread with its own
     /// message pump (a LL hook only delivers events while the installing thread
     /// pumps messages).
-    pub fn install(trigger: Trigger) {
-        if TRIGGER.set(trigger).is_err() {
+    pub fn install(region: Trigger, fullscreen: Trigger) {
+        if TRIGGERS.set(Triggers { region, fullscreen }).is_err() {
             return; // already installed
         }
         thread::spawn(|| unsafe {
@@ -124,7 +137,11 @@ pub use win::{free_printscreen_key, install, set_autostart};
 // ---------------------------------------------------------------- non-Windows
 
 #[cfg(not(windows))]
-pub fn install(_trigger: Box<dyn Fn() + Send + Sync>) {}
+pub fn install(
+    _region: Box<dyn Fn() + Send + Sync>,
+    _fullscreen: Box<dyn Fn() + Send + Sync>,
+) {
+}
 
 #[cfg(not(windows))]
 pub fn free_printscreen_key() {}

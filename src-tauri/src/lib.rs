@@ -112,11 +112,15 @@ fn begin_capture(app: &AppHandle) -> Result<()> {
     // Conform the bitmap to the window rect so screen pixels and canvas pixels
     // map 1:1 with no offset.
     if frame.pixels.width() != vw || frame.pixels.height() != vh {
+        // Triangle, not Lanczos3: on a multi-monitor desktop the frame is huge
+        // and Lanczos is several times slower for a difference nobody sees on a
+        // screenshot. Speed here is the gap between pressing the key and the
+        // overlay appearing.
         frame.pixels = image::imageops::resize(
             &frame.pixels,
             vw,
             vh,
-            image::imageops::FilterType::Lanczos3,
+            image::imageops::FilterType::Triangle,
         );
         frame.geometry.pixel_width = vw;
         frame.geometry.pixel_height = vh;
@@ -149,10 +153,49 @@ fn begin_capture(app: &AppHandle) -> Result<()> {
     window
         .set_size(PhysicalSize::new(vw, vh))
         .context("size overlay")?;
-    window.show().context("show overlay")?;
-    let _ = window.set_focus();
+    // Deliberately do NOT show here. The window stays hidden until the frontend
+    // has painted the frozen frame and the dim, then calls `overlay_ready`. That
+    // removes the flash of a transparent, un-dimmed overlay with a bare cursor
+    // while the ~30 MB frame is still loading over the IPC bridge.
 
     Ok(())
+}
+
+/// Capture the whole desktop with no overlay: straight to clipboard and the save
+/// folder. Bound to Ctrl+PrintScreen for a one-key "grab everything" shot.
+fn instant_capture(app: &AppHandle) -> Result<()> {
+    let frame = capture::capture_desktop()?;
+    let img = frame.pixels;
+
+    let settings = app.state::<AppState>().settings().clone();
+    let _ = imageio::copy_image_to_clipboard(&img);
+
+    let ext = if settings.format.eq_ignore_ascii_case("jpg")
+        || settings.format.eq_ignore_ascii_case("jpeg")
+    {
+        "jpg"
+    } else {
+        "png"
+    };
+    let dir = settings::resolve_save_dir(app, &settings);
+    let path = dir.join(imageio::default_filename(ext));
+    let bytes = imageio::encode_for_path(&img, &path, settings.jpeg_quality)?;
+    imageio::write_atomic(&path, &bytes)?;
+
+    let _ = app.emit(
+        "voidshot:toast",
+        format!("Full screen copied · saved to {}", path.display()),
+    );
+    Ok(())
+}
+
+fn spawn_instant(app: AppHandle) {
+    std::thread::spawn(move || {
+        if let Err(e) = instant_capture(&app) {
+            eprintln!("[voidshot] instant capture failed: {e:#}");
+            let _ = app.emit("voidshot:error", format!("Capture failed: {e}"));
+        }
+    });
 }
 
 fn close_overlay(app: &AppHandle) {
@@ -244,6 +287,12 @@ async fn finish_capture(
             })
         }
         "save" | "save_as" => {
+            // Close the overlay FIRST. It is always-on-top, so a native save
+            // dialog opened while it is up appears behind it and looks like
+            // nothing happened. The flattened image is already in `args.image`,
+            // so dropping the overlay here loses nothing.
+            close_overlay(&app);
+
             let ext = if settings.format.eq_ignore_ascii_case("jpg")
                 || settings.format.eq_ignore_ascii_case("jpeg")
             {
@@ -288,7 +337,6 @@ async fn finish_capture(
                 false
             };
 
-            close_overlay(&app);
             Ok(FinishResult {
                 saved_path: Some(path.to_string_lossy().to_string()),
                 copied,
@@ -302,6 +350,16 @@ async fn finish_capture(
 #[tauri::command]
 fn cancel_capture(app: AppHandle) {
     close_overlay(&app);
+}
+
+/// The overlay is built hidden; the frontend calls this once it has painted the
+/// first frame, so the window only appears fully rendered (frozen screen + dim).
+#[tauri::command]
+fn overlay_ready(app: AppHandle) {
+    if let Some(w) = app.get_webview_window(OVERLAY_LABEL) {
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
 }
 
 #[tauri::command]
@@ -551,6 +609,7 @@ pub fn run() {
             frame_pixels,
             finish_capture,
             cancel_capture,
+            overlay_ready,
             ocr_region,
             copy_text,
             pin_bytes,
@@ -595,8 +654,12 @@ pub fn run() {
                 if let Ok(exe) = std::env::current_exe() {
                     hook::set_autostart(&exe.to_string_lossy());
                 }
-                let h = handle.clone();
-                hook::install(Box::new(move || spawn_capture(h.clone())));
+                let h1 = handle.clone();
+                let h2 = handle.clone();
+                hook::install(
+                    Box::new(move || spawn_capture(h1.clone())),
+                    Box::new(move || spawn_instant(h2.clone())),
+                );
             }
 
             build_tray(&handle)?;

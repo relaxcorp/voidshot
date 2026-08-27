@@ -169,6 +169,12 @@ async function boot(): Promise<void> {
   bindHotkeys();
   setStatus("Drag to select a region · Esc to cancel");
 
+  // The overlay window was built hidden. Paint the frozen frame + dim into the
+  // canvas now, then ask the backend to reveal the window — so it appears fully
+  // rendered instead of flashing a transparent, un-dimmed overlay first.
+  editor.renderNow();
+  void invoke("overlay_ready");
+
   // If something steals the foreground the frozen screenshot underneath is
   // stale, so close rather than show a lie.
   //

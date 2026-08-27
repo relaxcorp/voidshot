@@ -220,6 +220,52 @@ body.overlay {
   color: #06121f;
 }
 
+/* ------------------------------------------------------- collapsed popovers */
+
+#vs-color,
+#vs-redact {
+  position: relative;
+}
+
+.vs-pop {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  background: var(--panel-solid);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  z-index: 30;
+}
+
+.vs-pop[hidden] {
+  display: none;
+}
+
+.vs-color-toggle {
+  width: 26px;
+  height: 26px;
+}
+
+.vs-redact-toggle {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  width: auto;
+  padding: 0 9px;
+  height: 34px;
+  font: 500 12px/1 "Segoe UI", system-ui, sans-serif;
+}
+
+.vs-redact-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
 /* ----------------------------------------------------------------- status */
 
 .vs-status {
