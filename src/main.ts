@@ -158,7 +158,14 @@ async function startCapture(timing?: CaptureTiming): Promise<void> {
   const t0 = performance.now();
   const settings = await invoke<Settings>("get_settings").catch(() => FALLBACK_SETTINGS);
   const geometry = await invoke<DesktopGeometry>("frame_info");
-  const raw = await invoke<ArrayBuffer>("frame_pixels");
+  // Pull the ~40 MB frame over the custom protocol, not invoke IPC (which took
+  // ~5 s for it). Tauri exposes custom schemes as http://<scheme>.localhost on
+  // Windows/Android and <scheme>://localhost elsewhere.
+  const frameUrl =
+    (navigator.userAgent.includes("Windows") ? "http://frame.localhost" : "frame://localhost") +
+    "/f?t=" +
+    Date.now();
+  const raw = await (await fetch(frameUrl)).arrayBuffer();
   const tIpc = performance.now();
 
   const pixels = new Uint8ClampedArray(raw);

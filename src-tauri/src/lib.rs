@@ -636,6 +636,24 @@ pub fn run() {
                 .build(),
         )
         .manage(AppState::default())
+        // Serve the frozen frame's raw RGBA over a custom protocol instead of the
+        // invoke IPC. The IPC bridge copies a ~40 MB frame through a slow encoded
+        // path (measured at ~5 s on a 3-monitor desktop); the protocol handler
+        // streams the bytes natively in tens of milliseconds.
+        .register_uri_scheme_protocol("frame", |ctx, _request| {
+            let bytes = ctx
+                .app_handle()
+                .state::<AppState>()
+                .frame()
+                .as_ref()
+                .map(|f| f.pixels.as_raw().clone())
+                .unwrap_or_default();
+            tauri::http::Response::builder()
+                .header("Content-Type", "application/octet-stream")
+                .header("Cache-Control", "no-store")
+                .body(bytes)
+                .unwrap()
+        })
         .invoke_handler(tauri::generate_handler![
             frame_info,
             frame_pixels,
