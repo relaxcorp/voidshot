@@ -1,0 +1,28 @@
+{
+  "name": "voidshot",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "test": "node tests/redact.test.mjs",
+    "test:rust": "cd src-tauri && cargo test --lib",
+    "icon": "node scripts/make-icon.mjs && tauri icon src-tauri/icons/source.png"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-dialog": "^2",
+    "@tauri-apps/plugin-opener": "^2"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
+    "@types/node": "^26.2.0",
+    "esbuild": "^0.28.2",
+    "playwright": "^1.62.1",
+    "typescript": "^5.7.0",
+    "vite": "^7.0.0"
+  }
+}

@@ -1,0 +1,13 @@
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/schemas/
+
+*.log
+.DS_Store
+.vscode/
+.idea/
+
+# Generated icon set — regenerate with `npm run icon`
+src-tauri/icons/android/
+src-tauri/icons/ios/

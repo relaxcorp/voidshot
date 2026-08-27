@@ -1,0 +1,55 @@
+[package]
+name = "voidshot"
+version = "0.1.0"
+description = "Screenshot tool with irreversible redaction"
+authors = ["Voidshot"]
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "voidshot_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# screen capture
+xcap = "0.9"
+
+# image decode/encode. NOTE: `image` never writes EXIF/XMP/IPTC on encode,
+# so a full decode -> re-encode cycle is itself the metadata strip.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+
+# clipboard with raw image support (the tauri clipboard plugin is text-oriented)
+arboard = { version = "3", features = ["image-data"] }
+
+base64 = "0.22"
+anyhow = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+
+[target.'cfg(windows)'.dependencies]
+# Windows.Media.Ocr: built into Windows 10/11, offline, zero bundle weight.
+windows = { version = "0.62", features = [
+  "Media_Ocr",
+  "Graphics_Imaging",
+  "Storage_Streams",
+  "Foundation",
+  "Foundation_Collections",
+  "Globalization",
+] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
