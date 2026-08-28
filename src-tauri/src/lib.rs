@@ -551,7 +551,8 @@ fn open_settings(app: AppHandle) -> Result<(), String> {
     }
     WebviewWindowBuilder::new(&app, "settings", WebviewUrl::App("settings.html".into()))
         .title("Voidshot — Settings")
-        .inner_size(520.0, 620.0)
+        .inner_size(560.0, 720.0)
+        .min_inner_size(520.0, 560.0)
         .resizable(true)
         .build()
         .map_err(|e| e.to_string())?;

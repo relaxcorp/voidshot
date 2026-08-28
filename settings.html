@@ -7,82 +7,119 @@
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body class="settings">
-    <h1>Voidshot</h1>
-    <p class="sub">Screenshots with redaction that cannot be undone.</p>
+    <div class="s-shell">
+      <header class="s-head">
+        <div class="s-brand">
+          <span class="s-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 2.5 4 6.2v6c0 5 3.4 8.2 8 9.3 4.6-1.1 8-4.3 8-9.3v-6L12 2.5Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.1" fill="currentColor"/></svg>
+          </span>
+          <div class="s-brand-t">
+            <h1>Voidshot</h1>
+            <p class="s-sub">Redaction that cannot be undone</p>
+          </div>
+        </div>
+        <span class="s-ver">v0.1.0</span>
+      </header>
 
-    <div class="field">
-      <label for="hotkey">Capture hotkey</label>
-      <input id="hotkey" type="text" readonly placeholder="Click, then press keys" />
-      <span class="hint">Click the field and press the combination you want.</span>
-    </div>
+      <section class="s-card">
+        <div class="s-card-h">Capture</div>
+        <div class="s-row">
+          <label class="s-label" for="hotkey">
+            <span>Hotkey</span>
+            <small>Click the field, then press your combination</small>
+          </label>
+          <input id="hotkey" class="s-input s-key" type="text" readonly placeholder="Press keys…" />
+        </div>
+        <div class="s-note">
+          <span class="s-dot"></span>
+          Grab the whole screen instantly with <kbd>Ctrl</kbd>+<kbd>PrtSc</kbd> — straight to clipboard and folder.
+        </div>
+      </section>
 
-    <div class="field">
-      <label for="save_dir">Save folder</label>
-      <input id="save_dir" type="text" placeholder="Pictures/Voidshot" />
-      <span class="hint">Leave empty for the default Pictures folder.</span>
-    </div>
+      <section class="s-card">
+        <div class="s-card-h">Output</div>
+        <div class="s-row">
+          <label class="s-label" for="save_dir">
+            <span>Save folder</span>
+            <small>Leave empty for the system Pictures folder</small>
+          </label>
+          <input id="save_dir" class="s-input" type="text" placeholder="Pictures/Voidshot" />
+        </div>
+        <div class="s-row">
+          <label class="s-label" for="format"><span>Format</span></label>
+          <div class="s-select-wrap">
+            <select id="format" class="s-select">
+              <option value="png">PNG — lossless</option>
+              <option value="jpg">JPEG — smaller files</option>
+            </select>
+          </div>
+        </div>
+        <div class="s-row" id="quality_field">
+          <label class="s-label" for="jpeg_quality"><span>JPEG quality</span></label>
+          <div class="s-range-wrap">
+            <input id="jpeg_quality" class="s-range" type="range" min="40" max="100" step="1" />
+            <output id="quality_val" class="s-range-val">92</output>
+          </div>
+        </div>
+      </section>
 
-    <div class="field">
-      <label for="format">Format</label>
-      <select id="format">
-        <option value="png">PNG — lossless</option>
-        <option value="jpg">JPEG — smaller files</option>
-      </select>
-    </div>
+      <section class="s-card">
+        <div class="s-card-h">Redaction</div>
+        <div class="s-row">
+          <label class="s-label" for="redact_style">
+            <span>Default style</span>
+            <small>All three replace the pixels — nothing is recoverable</small>
+          </label>
+          <div class="s-select-wrap">
+            <select id="redact_style" class="s-select">
+              <option value="blur">Blur — looks blurred</option>
+              <option value="mosaic">Mosaic — looks pixelated</option>
+              <option value="solid">Solid — flat block</option>
+            </select>
+          </div>
+        </div>
+        <div class="s-row">
+          <label class="s-label" for="redact_padding">
+            <span>Box padding</span>
+            <small>Grows each box so its shape hides the length</small>
+          </label>
+          <input id="redact_padding" class="s-input s-num" type="number" min="0" max="40" step="1" />
+        </div>
+      </section>
 
-    <div class="field" id="quality_field">
-      <label for="jpeg_quality">JPEG quality</label>
-      <input id="jpeg_quality" type="number" min="40" max="100" step="1" />
-    </div>
+      <section class="s-card">
+        <div class="s-card-h">Behaviour</div>
+        <label class="s-toggle">
+          <span class="s-toggle-t">
+            <b>Copy to clipboard on save</b>
+            <small>Saving also puts the image on the clipboard</small>
+          </span>
+          <input id="copy_on_save" type="checkbox" />
+          <i class="s-sw" aria-hidden="true"></i>
+        </label>
+        <label class="s-toggle">
+          <span class="s-toggle-t">
+            <b>Quick save</b>
+            <small>Skip the dialog, write straight to the folder</small>
+          </span>
+          <input id="quick_save" type="checkbox" />
+          <i class="s-sw" aria-hidden="true"></i>
+        </label>
+        <label class="s-toggle">
+          <span class="s-toggle-t">
+            <b>Magnifier while selecting</b>
+            <small>Loupe with pixel coordinates for precise edges</small>
+          </span>
+          <input id="show_magnifier" type="checkbox" />
+          <i class="s-sw" aria-hidden="true"></i>
+        </label>
+      </section>
 
-    <div class="field">
-      <label for="redact_style">Default redaction style</label>
-      <select id="redact_style">
-        <option value="blur">Blur — looks blurred, contains nothing</option>
-        <option value="mosaic">Mosaic — looks pixelated, contains nothing</option>
-        <option value="solid">Solid — flat block</option>
-      </select>
-      <span class="hint">
-        All three replace the pixels outright. Nothing is recoverable from any of them.
-      </span>
-    </div>
-
-    <div class="field">
-      <label for="redact_padding">Redaction padding (px)</label>
-      <input id="redact_padding" type="number" min="0" max="40" step="1" />
-      <span class="hint">
-        Grows each redaction box so its shape does not hint at the length of what was hidden.
-      </span>
-    </div>
-
-    <label class="check">
-      <input id="copy_on_save" type="checkbox" />
-      <span>
-        Copy to clipboard on save
-        <span class="hint">Saving also puts the image on the clipboard.</span>
-      </span>
-    </label>
-
-    <label class="check">
-      <input id="quick_save" type="checkbox" />
-      <span>
-        Quick save
-        <span class="hint">Skip the file dialog and write straight to the save folder.</span>
-      </span>
-    </label>
-
-    <label class="check">
-      <input id="show_magnifier" type="checkbox" />
-      <span>
-        Magnifier while selecting
-        <span class="hint">Loupe with pixel coordinates for precise edges.</span>
-      </span>
-    </label>
-
-    <div class="actions">
-      <button id="save" class="primary">Save</button>
-      <button id="close">Close</button>
-      <span id="saved" class="saved">Saved</span>
+      <footer class="s-foot">
+        <span id="saved" class="s-saved">Saved</span>
+        <button id="close" class="s-btn">Close</button>
+        <button id="save" class="s-btn s-primary">Save changes</button>
+      </footer>
     </div>
 
     <script type="module" src="/src/settings.ts"></script>

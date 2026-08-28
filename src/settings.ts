@@ -8,6 +8,7 @@ const hotkey = $<HTMLInputElement>("hotkey");
 const saveDir = $<HTMLInputElement>("save_dir");
 const format = $<HTMLSelectElement>("format");
 const quality = $<HTMLInputElement>("jpeg_quality");
+const qualityVal = $<HTMLOutputElement>("quality_val");
 const qualityField = $<HTMLDivElement>("quality_field");
 const redactStyle = $<HTMLSelectElement>("redact_style");
 const redactPadding = $<HTMLInputElement>("redact_padding");
@@ -59,12 +60,17 @@ format.addEventListener("change", () => {
   qualityField.hidden = format.value !== "jpg";
 });
 
+quality.addEventListener("input", () => {
+  qualityVal.textContent = quality.value;
+});
+
 async function load(): Promise<void> {
   const s = await invoke<Settings>("get_settings");
   hotkey.value = s.hotkey;
   saveDir.value = s.save_dir;
   format.value = s.format === "jpg" || s.format === "jpeg" ? "jpg" : "png";
   quality.value = String(s.jpeg_quality);
+  qualityVal.textContent = String(s.jpeg_quality);
   redactStyle.value = s.redact_style;
   redactPadding.value = String(s.redact_padding);
   copyOnSave.checked = s.copy_on_save;
