@@ -144,6 +144,24 @@ export class Editor {
           handle,
           originRect: { ...(this.selection as Rect) },
         };
+      } else {
+        // Clicked on empty space outside the current selection: start a fresh
+        // region, like every normal screenshot tool. Re-enter the select phase
+        // and clear annotations so pointer-up finalises a clean new selection.
+        this.phase = "select";
+        this.shapes = [];
+        this.undoStack.length = 0;
+        this.redoStack.length = 0;
+        this.counter = 1;
+        this.selection = { x: p.x, y: p.y, w: 0, h: 0 };
+        this.drag = {
+          tool: "select",
+          start: p,
+          current: p,
+          points: [p],
+          handle: "se",
+          originRect: { ...this.selection },
+        };
       }
       this.requestRender();
       return;

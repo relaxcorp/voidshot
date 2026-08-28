@@ -183,12 +183,14 @@ async function startCapture(timing?: CaptureTiming): Promise<void> {
   editor = null;
 
   const t0 = performance.now();
-  const settings = await invoke<Settings>("get_settings").catch(() => FALLBACK_SETTINGS);
-  const geometry = await invoke<DesktopGeometry>("frame_info");
-  // Pull the ~40 MB frame over the custom protocol (fast native load) instead of
-  // invoke IPC (which took ~5 s). If the protocol does not answer quickly, fall
-  // back to the IPC command so capture always works — just slower.
-  const { raw, via } = await loadFrame();
+  // Fire all three in parallel — settings, geometry and the frame bytes are
+  // independent, so there is no reason to wait for them one after another.
+  const [settings, geometry, frame] = await Promise.all([
+    invoke<Settings>("get_settings").catch(() => FALLBACK_SETTINGS),
+    invoke<DesktopGeometry>("frame_info"),
+    loadFrame(),
+  ]);
+  const { raw, via } = frame;
   const tIpc = performance.now();
 
   const pixels = new Uint8ClampedArray(raw);
@@ -232,6 +234,10 @@ async function startCapture(timing?: CaptureTiming): Promise<void> {
 // ---- one-time page setup (the overlay window is long-lived and reused) -------
 
 bindHotkeys();
+
+// A screenshot overlay has no business showing the OS "save image / print"
+// context menu, so suppress right-click everywhere on it.
+window.addEventListener("contextmenu", (e) => e.preventDefault());
 
 const appWindow = getCurrentWindow();
 // If something steals the foreground the frozen screenshot underneath is stale,

@@ -187,3 +187,15 @@ tests/
 demo/
   preview.ts    renders the editor with a fake screen, no backend needed
 ```
+
+---
+
+## Built by Relax Lab
+
+Voidshot is one of our tools. **Relax Lab builds custom desktop, web and
+automation software on request** — bots, native apps, browser tooling, AI
+integrations.
+
+Need something like this (or entirely different) built? → **[t.me/relaxdev](https://t.me/relaxdev)**
+
+MIT-licensed — use it, fork it, ship it.

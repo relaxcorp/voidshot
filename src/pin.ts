@@ -29,6 +29,9 @@ async function boot(): Promise<void> {
   }
 }
 
+// No OS "save image" context menu on a pinned shot.
+window.addEventListener("contextmenu", (e) => e.preventDefault());
+
 // Dragging anywhere moves the window — the pin has no title bar.
 document.body.addEventListener("pointerdown", (e) => {
   if (e.button === 0) void appWindow.startDragging();
