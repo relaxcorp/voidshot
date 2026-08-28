@@ -386,28 +386,24 @@ body.pin:hover .pin-hint {
 /* ===================================================== settings (premium) */
 
 body.settings {
-  --s-bg: #0a0a0f;
-  --s-card: rgba(255, 255, 255, 0.022);
-  --s-card-line: rgba(255, 255, 255, 0.07);
-  --s-field: rgba(255, 255, 255, 0.03);
-  --s-field-line: rgba(255, 255, 255, 0.11);
-  --s-text: #ecebf2;
-  --s-dim: #8a8898;
-  --s-violet: #a78bfa;
-  --s-pink: #ec4899;
+  --s-bg: #08090c;
+  --s-card: rgba(255, 255, 255, 0.018);
+  --s-card-line: rgba(255, 255, 255, 0.06);
+  --s-field: rgba(255, 255, 255, 0.028);
+  --s-field-line: rgba(255, 255, 255, 0.10);
+  --s-text: #e9ebf0;
+  --s-dim: #7e828e;
+  --s-accent: #4da3ff;
 
   min-height: 100vh;
-  padding: 28px 26px 34px;
+  padding: 30px 28px 34px;
   overflow-y: auto;
   color: var(--s-text);
   cursor: default;
   user-select: text;
   -webkit-user-select: text;
   font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-  background:
-    radial-gradient(120% 80% at 85% -10%, rgba(167, 139, 250, 0.12), transparent 55%),
-    radial-gradient(120% 90% at -10% 110%, rgba(236, 72, 153, 0.09), transparent 55%),
-    var(--s-bg);
+  background: var(--s-bg);
 }
 
 .s-shell {
@@ -435,17 +431,17 @@ body.settings {
 .s-mark {
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  color: #fff;
-  background: linear-gradient(150deg, var(--s-violet), var(--s-pink));
-  box-shadow: 0 6px 20px rgba(167, 139, 250, 0.35);
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  color: var(--s-accent);
+  background: rgba(77, 163, 255, 0.10);
+  border: 1px solid rgba(77, 163, 255, 0.26);
 }
 
 .s-mark svg {
-  width: 23px;
-  height: 23px;
+  width: 22px;
+  height: 22px;
 }
 
 .s-brand-t h1 {
@@ -474,18 +470,18 @@ body.settings {
 /* cards */
 .s-card {
   border: 1px solid var(--s-card-line);
-  border-radius: 14px;
-  padding: 6px 16px 14px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0)) var(--s-card);
+  border-radius: 12px;
+  padding: 6px 18px 15px;
+  background: var(--s-card);
 }
 
 .s-card-h {
-  padding: 12px 0 10px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.10em;
+  padding: 13px 0 11px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.11em;
   text-transform: uppercase;
-  color: var(--s-violet);
+  color: var(--s-dim);
 }
 
 .s-row {
@@ -551,8 +547,8 @@ body.settings {
 .s-input:focus,
 .s-select:focus {
   outline: none;
-  border-color: var(--s-violet);
-  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.18);
+  border-color: var(--s-accent);
+  box-shadow: 0 0 0 3px rgba(77, 163, 255, 0.16);
 }
 
 .s-select-wrap {
@@ -614,7 +610,7 @@ body.settings {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: linear-gradient(150deg, var(--s-violet), var(--s-pink));
+  background: var(--s-accent);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
 }
 
@@ -633,20 +629,19 @@ body.settings {
   gap: 9px;
   margin-top: 10px;
   padding: 10px 12px;
-  border: 1px solid rgba(167, 139, 250, 0.22);
-  border-radius: 10px;
-  background: rgba(167, 139, 250, 0.06);
+  border: 1px solid var(--s-card-line);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.02);
   font-size: 12px;
-  color: #cfc9e6;
+  color: var(--s-dim);
 }
 
 .s-dot {
   flex: none;
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: linear-gradient(150deg, var(--s-violet), var(--s-pink));
-  box-shadow: 0 0 8px rgba(167, 139, 250, 0.7);
+  background: var(--s-accent);
 }
 
 kbd {
@@ -716,7 +711,7 @@ kbd {
 }
 
 .s-toggle input:checked ~ .s-sw {
-  background: linear-gradient(150deg, var(--s-violet), var(--s-pink));
+  background: var(--s-accent);
 }
 
 .s-toggle input:checked ~ .s-sw::after {
@@ -724,7 +719,7 @@ kbd {
 }
 
 .s-toggle input:focus-visible ~ .s-sw {
-  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.25);
+  box-shadow: 0 0 0 3px rgba(77, 163, 255, 0.22);
 }
 
 /* footer */
@@ -768,7 +763,11 @@ kbd {
 
 .s-primary {
   border-color: transparent;
-  color: #fff;
-  background: linear-gradient(150deg, var(--s-violet), var(--s-pink));
-  box-shadow: 0 6px 18px rgba(167, 139, 250, 0.3);
+  color: #06121f;
+  font-weight: 640;
+  background: var(--s-accent);
+}
+
+.s-primary:hover {
+  filter: brightness(1.08);
 }
