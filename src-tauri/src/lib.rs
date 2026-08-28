@@ -651,6 +651,9 @@ pub fn run() {
             tauri::http::Response::builder()
                 .header("Content-Type", "application/octet-stream")
                 .header("Cache-Control", "no-store")
+                // The app origin differs from this scheme's origin, so without
+                // CORS the fetch is blocked and the frame never arrives.
+                .header("Access-Control-Allow-Origin", "*")
                 .body(bytes)
                 .unwrap()
         })

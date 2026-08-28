@@ -147,6 +147,33 @@ interface CaptureTiming {
   resize_ms: number;
 }
 
+/**
+ * Load the frozen frame. Prefer the custom protocol (native, fast); if it does
+ * not answer within a short budget, fall back to the invoke IPC command so a
+ * capture never silently fails — it just loads slower.
+ */
+async function loadFrame(): Promise<{ raw: ArrayBuffer; via: string }> {
+  const url =
+    (navigator.userAgent.includes("Windows") ? "http://frame.localhost" : "frame://localhost") +
+    "/f?t=" +
+    Date.now();
+  try {
+    const ctrl = new AbortController();
+    const timer = window.setTimeout(() => ctrl.abort(), 600);
+    try {
+      const resp = await fetch(url, { signal: ctrl.signal });
+      const buf = await resp.arrayBuffer();
+      if (buf.byteLength === 0) throw new Error("empty frame from protocol");
+      return { raw: buf, via: "proto" };
+    } finally {
+      window.clearTimeout(timer);
+    }
+  } catch {
+    const buf = await invoke<ArrayBuffer>("frame_pixels");
+    return { raw: buf, via: "ipc" };
+  }
+}
+
 async function startCapture(timing?: CaptureTiming): Promise<void> {
   // Tear down the previous capture's editor/toolbar so we never stack rAF loops
   // or leak the old frame bitmap.
@@ -158,14 +185,10 @@ async function startCapture(timing?: CaptureTiming): Promise<void> {
   const t0 = performance.now();
   const settings = await invoke<Settings>("get_settings").catch(() => FALLBACK_SETTINGS);
   const geometry = await invoke<DesktopGeometry>("frame_info");
-  // Pull the ~40 MB frame over the custom protocol, not invoke IPC (which took
-  // ~5 s for it). Tauri exposes custom schemes as http://<scheme>.localhost on
-  // Windows/Android and <scheme>://localhost elsewhere.
-  const frameUrl =
-    (navigator.userAgent.includes("Windows") ? "http://frame.localhost" : "frame://localhost") +
-    "/f?t=" +
-    Date.now();
-  const raw = await (await fetch(frameUrl)).arrayBuffer();
+  // Pull the ~40 MB frame over the custom protocol (fast native load) instead of
+  // invoke IPC (which took ~5 s). If the protocol does not answer quickly, fall
+  // back to the IPC command so capture always works — just slower.
+  const { raw, via } = await loadFrame();
   const tIpc = performance.now();
 
   const pixels = new Uint8ClampedArray(raw);
@@ -200,7 +223,7 @@ async function startCapture(timing?: CaptureTiming): Promise<void> {
   const cap = timing?.capture_ms ?? 0;
   const rez = timing?.resize_ms ?? 0;
   setStatus(
-    `⏱ grab ${cap} · resize ${rez} · load ${Math.round(tIpc - t0)} · decode ${Math.round(
+    `⏱ grab ${cap} · resize ${rez} · load ${Math.round(tIpc - t0)}(${via}) · decode ${Math.round(
       tBmp - tIpc,
     )} · paint ${Math.round(tPaint - tBmp)} ms — drag to select`,
   );
