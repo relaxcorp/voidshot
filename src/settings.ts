@@ -15,6 +15,7 @@ const redactPadding = $<HTMLInputElement>("redact_padding");
 const copyOnSave = $<HTMLInputElement>("copy_on_save");
 const quickSave = $<HTMLInputElement>("quick_save");
 const showMagnifier = $<HTMLInputElement>("show_magnifier");
+const autostart = $<HTMLInputElement>("autostart");
 const savedFlag = $<HTMLSpanElement>("saved");
 
 /** Translate a KeyboardEvent into Tauri's accelerator syntax. */
@@ -76,6 +77,7 @@ async function load(): Promise<void> {
   copyOnSave.checked = s.copy_on_save;
   quickSave.checked = s.quick_save;
   showMagnifier.checked = s.show_magnifier;
+  autostart.checked = s.autostart;
   qualityField.hidden = format.value !== "jpg";
 }
 
@@ -90,6 +92,7 @@ $<HTMLButtonElement>("save").addEventListener("click", async () => {
     redact_style: redactStyle.value as RedactStyle,
     redact_padding: Number(redactPadding.value) || 0,
     show_magnifier: showMagnifier.checked,
+    autostart: autostart.checked,
   };
   try {
     await invoke("set_settings", { new: next });

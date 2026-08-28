@@ -25,6 +25,13 @@ pub struct Settings {
     /// does not leak the length of what was hidden.
     pub redact_padding: u32,
     pub show_magnifier: bool,
+    /// Launch with Windows (writes an HKCU Run entry).
+    #[serde(default = "default_true")]
+    pub autostart: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Default for Settings {
@@ -39,6 +46,7 @@ impl Default for Settings {
             redact_style: "blur".into(),
             redact_padding: 2,
             show_magnifier: true,
+            autostart: true,
         }
     }
 }

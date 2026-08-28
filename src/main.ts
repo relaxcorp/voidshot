@@ -134,6 +134,7 @@ const FALLBACK_SETTINGS: Settings = {
   redact_style: "blur" as RedactStyle,
   redact_padding: 2,
   show_magnifier: true,
+  autostart: true,
 };
 
 /**
@@ -142,17 +143,12 @@ const FALLBACK_SETTINGS: Settings = {
  * startup and reused — so this path never pays the WebView2 cold-start cost,
  * which was the bulk of the press-to-overlay delay.
  */
-interface CaptureTiming {
-  capture_ms: number;
-  resize_ms: number;
-}
-
 /**
  * Load the frozen frame. Prefer the custom protocol (native, fast); if it does
  * not answer within a short budget, fall back to the invoke IPC command so a
  * capture never silently fails — it just loads slower.
  */
-async function loadFrame(): Promise<{ raw: ArrayBuffer; via: string }> {
+async function loadFrame(): Promise<ArrayBuffer> {
   const url =
     (navigator.userAgent.includes("Windows") ? "http://frame.localhost" : "frame://localhost") +
     "/f?t=" +
@@ -164,17 +160,16 @@ async function loadFrame(): Promise<{ raw: ArrayBuffer; via: string }> {
       const resp = await fetch(url, { signal: ctrl.signal });
       const buf = await resp.arrayBuffer();
       if (buf.byteLength === 0) throw new Error("empty frame from protocol");
-      return { raw: buf, via: "proto" };
+      return buf;
     } finally {
       window.clearTimeout(timer);
     }
   } catch {
-    const buf = await invoke<ArrayBuffer>("frame_pixels");
-    return { raw: buf, via: "ipc" };
+    return invoke<ArrayBuffer>("frame_pixels");
   }
 }
 
-async function startCapture(timing?: CaptureTiming): Promise<void> {
+async function startCapture(): Promise<void> {
   // Tear down the previous capture's editor/toolbar so we never stack rAF loops
   // or leak the old frame bitmap.
   toolbar?.destroy();
@@ -182,16 +177,13 @@ async function startCapture(timing?: CaptureTiming): Promise<void> {
   editor?.destroy();
   editor = null;
 
-  const t0 = performance.now();
   // Fire all three in parallel — settings, geometry and the frame bytes are
   // independent, so there is no reason to wait for them one after another.
-  const [settings, geometry, frame] = await Promise.all([
+  const [settings, geometry, raw] = await Promise.all([
     invoke<Settings>("get_settings").catch(() => FALLBACK_SETTINGS),
     invoke<DesktopGeometry>("frame_info"),
     loadFrame(),
   ]);
-  const { raw, via } = frame;
-  const tIpc = performance.now();
 
   const pixels = new Uint8ClampedArray(raw);
   const expected = geometry.pixel_width * geometry.pixel_height * 4;
@@ -203,7 +195,6 @@ async function startCapture(timing?: CaptureTiming): Promise<void> {
 
   const imageData = new ImageData(pixels, geometry.pixel_width, geometry.pixel_height);
   const bitmap = await createImageBitmap(imageData);
-  const tBmp = performance.now();
 
   editor = new Editor(canvas, bitmap, geometry, settings, {
     onAction: (action, result) => void handleAction(action, result),
@@ -217,18 +208,9 @@ async function startCapture(timing?: CaptureTiming): Promise<void> {
   // Paint the frozen frame + dim into the canvas now, then reveal the window so
   // it appears fully rendered instead of flashing an empty overlay.
   editor.renderNow();
-  const tPaint = performance.now();
   void invoke("overlay_ready");
   openedAt = performance.now();
-
-  // Diagnostic: show where the press-to-overlay time went, in the status bar.
-  const cap = timing?.capture_ms ?? 0;
-  const rez = timing?.resize_ms ?? 0;
-  setStatus(
-    `⏱ grab ${cap} · resize ${rez} · load ${Math.round(tIpc - t0)}(${via}) · decode ${Math.round(
-      tBmp - tIpc,
-    )} · paint ${Math.round(tPaint - tBmp)} ms — drag to select`,
-  );
+  setStatus("Drag to select a region · Esc to cancel");
 }
 
 // ---- one-time page setup (the overlay window is long-lived and reused) -------
@@ -251,8 +233,8 @@ void appWindow.onFocusChanged(({ payload: focused }) => {
 });
 
 // Each PrintScreen stages a new frame in the backend and fires this event.
-void listen<CaptureTiming>("voidshot:capture", (event) => {
-  void startCapture(event.payload).catch((e) => {
+void listen("voidshot:capture", () => {
+  void startCapture().catch((e) => {
     setStatus(`Startup failed: ${e}`, "error");
     window.setTimeout(() => void invoke("cancel_capture"), 2500);
   });

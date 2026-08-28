@@ -24,7 +24,7 @@ mod win {
     use windows::core::w;
     use windows::Win32::Foundation::{LPARAM, LRESULT, WPARAM};
     use windows::Win32::System::Registry::{
-        RegSetKeyValueW, HKEY_CURRENT_USER, REG_DWORD, REG_SZ,
+        RegDeleteKeyValueW, RegSetKeyValueW, HKEY_CURRENT_USER, REG_DWORD, REG_SZ,
     };
     use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_CONTROL, VK_SNAPSHOT};
     use windows::Win32::UI::WindowsAndMessaging::{
@@ -129,10 +129,21 @@ mod win {
             );
         }
     }
+
+    /// Remove the autostart entry.
+    pub fn clear_autostart() {
+        unsafe {
+            let _ = RegDeleteKeyValueW(
+                HKEY_CURRENT_USER,
+                w!("Software\\Microsoft\\Windows\\CurrentVersion\\Run"),
+                w!("Voidshot"),
+            );
+        }
+    }
 }
 
 #[cfg(windows)]
-pub use win::{free_printscreen_key, install, set_autostart};
+pub use win::{clear_autostart, free_printscreen_key, install, set_autostart};
 
 // ---------------------------------------------------------------- non-Windows
 
@@ -148,3 +159,6 @@ pub fn free_printscreen_key() {}
 
 #[cfg(not(windows))]
 pub fn set_autostart(_exe_path: &str) {}
+
+#[cfg(not(windows))]
+pub fn clear_autostart() {}

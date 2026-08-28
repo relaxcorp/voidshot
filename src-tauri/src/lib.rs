@@ -80,14 +80,6 @@ fn tauri_virtual_rect(app: &AppHandle) -> Result<(i32, i32, u32, u32)> {
     ))
 }
 
-/// Per-capture timings shipped to the frontend so the status bar can show where
-/// the press-to-overlay time is actually spent (diagnostic).
-#[derive(Clone, Serialize)]
-struct CaptureTiming {
-    capture_ms: u64,
-    resize_ms: u64,
-}
-
 /// Build the overlay window (hidden). Created once at startup and reused for
 /// every capture, so the hotkey never pays the WebView2 cold-start cost — that
 /// was the bulk of the old press-to-overlay delay.
@@ -136,13 +128,10 @@ fn begin_capture(app: &AppHandle) -> Result<()> {
         })
         .collect();
 
-    let t_capture = std::time::Instant::now();
     let mut frame = capture::capture_desktop()?;
-    let capture_ms = t_capture.elapsed().as_millis() as u64;
 
     // Conform the bitmap to the window rect so screen pixels and canvas pixels
     // map 1:1 with no offset.
-    let t_resize = std::time::Instant::now();
     if frame.pixels.width() != vw || frame.pixels.height() != vh {
         // Triangle, not Lanczos3: on a multi-monitor desktop the frame is huge
         // and Lanczos is several times slower for a difference nobody sees on a
@@ -157,7 +146,6 @@ fn begin_capture(app: &AppHandle) -> Result<()> {
         frame.geometry.pixel_width = vw;
         frame.geometry.pixel_height = vh;
     }
-    let resize_ms = t_resize.elapsed().as_millis() as u64;
     frame.geometry.x = vx;
     frame.geometry.y = vy;
     frame.geometry.monitors = monitors;
@@ -179,15 +167,8 @@ fn begin_capture(app: &AppHandle) -> Result<()> {
 
     // Tell the already-loaded frontend to load the new frame and repaint. When
     // it has painted it calls `overlay_ready`, which shows the window — so it
-    // appears fully rendered, never as an empty flash. Timings ride along so the
-    // status bar can show where the press-to-overlay time actually goes.
-    let _ = window.emit(
-        "voidshot:capture",
-        CaptureTiming {
-            capture_ms,
-            resize_ms,
-        },
-    );
+    // appears fully rendered, never as an empty flash.
+    let _ = window.emit("voidshot:capture", ());
     Ok(())
 }
 
@@ -496,6 +477,21 @@ fn set_settings(
     if new.hotkey != old_hotkey {
         rebind_hotkey(&app, &old_hotkey, &new.hotkey).map_err(|e| e.to_string())?;
     }
+
+    #[cfg(windows)]
+    {
+        let old_auto = state.settings().autostart;
+        if new.autostart != old_auto {
+            if new.autostart {
+                if let Ok(exe) = std::env::current_exe() {
+                    hook::set_autostart(&exe.to_string_lossy());
+                }
+            } else {
+                hook::clear_autostart();
+            }
+        }
+    }
+
     *state.settings() = new.clone();
     settings::save(&app, &new).map_err(|e| e.to_string())
 }
@@ -705,8 +701,14 @@ pub fn run() {
             #[cfg(windows)]
             {
                 hook::free_printscreen_key();
-                if let Ok(exe) = std::env::current_exe() {
-                    hook::set_autostart(&exe.to_string_lossy());
+                // Keep the autostart entry in sync with the setting (and with the
+                // current exe path) on every launch.
+                if app.state::<AppState>().settings().autostart {
+                    if let Ok(exe) = std::env::current_exe() {
+                        hook::set_autostart(&exe.to_string_lossy());
+                    }
+                } else {
+                    hook::clear_autostart();
                 }
                 let h1 = handle.clone();
                 let h2 = handle.clone();

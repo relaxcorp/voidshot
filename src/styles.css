@@ -571,24 +571,14 @@ body.settings {
 
 /* note strip */
 .s-note {
-  display: flex;
-  align-items: center;
-  gap: 9px;
   margin-top: 10px;
-  padding: 10px 12px;
+  padding: 10px 13px;
   border: 1px solid var(--s-card-line);
   border-radius: 9px;
   background: rgba(255, 255, 255, 0.02);
   font-size: 12px;
+  line-height: 1.5;
   color: var(--s-dim);
-}
-
-.s-dot {
-  flex: none;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--s-accent);
 }
 
 kbd {

@@ -2,8 +2,8 @@
 
 Screenshot tool with redaction that actually cannot be undone.
 
-Global hotkey → freeze the screen → select a region → annotate → copy, save, pin
-or OCR. Metadata is stripped on the way out, always.
+Global hotkey → freeze the screen → select a region → annotate → copy, save or
+pin. Metadata is stripped on the way out, always.
 
 <p align="center">
   <img src="docs/screenshot.png" alt="Voidshot editor: blur, mosaic and solid redaction with annotations" width="860">
@@ -101,24 +101,22 @@ Both the metadata strip and the acropalypse guard have Rust regression tests
 ## Features
 
 - **Global hotkey** capture (PrintScreen by default on Windows), tray icon, runs in background
+- **Full screen instantly** with `Ctrl`+`PrintScreen` — straight to clipboard and the save folder
 - **Multi-monitor** with mixed DPI — monitors are stitched into one virtual desktop
 - **Live editor**: rectangle, ellipse, arrow, line, pen, highlighter, text, numbered steps
 - **Safe Blur** in three styles, with adjustable strength and padding
-- **OCR** — on Windows uses the built-in `Windows.Media.Ocr`: offline, and **0 MB** added to the bundle (Tesseract would add ~30 MB per language)
 - **Pin** a shot as an always-on-top floating window (drag to move, wheel to resize)
 - Magnifier with pixel coordinates for exact edges
 - Undo/redo, PNG or JPEG output, quick-save or dialog
+- Optional **start with Windows**, so PrintScreen keeps opening Voidshot after a reboot
 
-### A note on PrintScreen (Windows 11)
+### PrintScreen on Windows 11
 
-Windows 11 ships with **"Use the Print screen key to open Snipping Tool"** turned
-on, and the OS swallows the key before any application sees it. Voidshot walks a
-fallback chain at startup (`PrintScreen` → `Ctrl+Shift+S` → `Ctrl+Shift+X` →
-`Ctrl+Alt+S`), persists whichever one registered, and shows it in Settings — so
-it never silently looks dead.
-
-To actually get PrintScreen: **Settings → Accessibility → Keyboard** and turn off
-the Print screen shortcut, then re-select it in Voidshot's settings.
+Windows 11 ships with **"Use the Print screen key to open Snipping Tool"** on,
+which claims the key before any ordinary global shortcut can see it. Voidshot
+installs a low-level keyboard hook that grabs PrintScreen ahead of the OS and
+switches the Snipping-Tool binding off, so the key opens Voidshot from the first
+launch. Prefer something else? Pick any combination in Settings.
 
 ### Keyboard
 
@@ -129,7 +127,7 @@ the Print screen shortcut, then re-select it in Voidshot's settings.
 | `Ctrl+S` / `Ctrl+Shift+S` | Save / Save as |
 | `Ctrl+Z` / `Ctrl+Shift+Z` | Undo / Redo |
 | `V` `B` `R` `E` `A` `L` `P` `H` `T` `N` | Move, redact, rect, ellipse, arrow, line, pen, highlight, text, number |
-| `O` | OCR the selection to clipboard |
+| `Ctrl`+`PrintScreen` | Grab the whole screen instantly |
 | `Shift` while dragging | Constrain to square / 45° |
 
 ---

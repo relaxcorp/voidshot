@@ -113,6 +113,7 @@ async function boot(): Promise<void> {
     redact_style: "blur",
     redact_padding: 2,
     show_magnifier: true,
+    autostart: true,
   };
 
   const canvas = document.getElementById("stage") as HTMLCanvasElement;

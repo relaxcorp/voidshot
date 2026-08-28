@@ -46,6 +46,7 @@ export interface Settings {
   redact_style: RedactStyle;
   redact_padding: number;
   show_magnifier: boolean;
+  autostart: boolean;
 }
 
 export interface MonitorRect {
